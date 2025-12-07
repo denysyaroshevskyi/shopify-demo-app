@@ -11,8 +11,12 @@ include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-01"
-# Note: Webhook subscriptions removed for --use-localhost compatibility
-# Shopify cannot reach localhost URLs for webhook delivery
+
+# Inventory level updates webhook
+# Triggered when inventory quantities change
+[[webhooks.subscriptions]]
+topics = [ "inventory_levels/update" ]
+uri = "/webhooks/inventory_levels/update"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

@@ -19,6 +19,7 @@ export default function App() {
         <s-link href="/app">Home</s-link>
         <s-link href="/app/additional">Additional page</s-link>
         <s-link href="/app/inventory">Inventory Manager</s-link>
+        <s-link href="/app/webhook-logs">Webhook Logs</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>
