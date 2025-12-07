@@ -1,0 +1,11 @@
+# Theme App Extension Configuration
+name = "inventory-widget"
+uid = "2250aa6f-1311-15f8-6b20-60d6d2645d053482039b"
+type = "theme"
+version = "1.0.0"
+
+[extension_points]
+  [extension_points.app_blocks]
+    [[extension_points.app_blocks.blocks]]
+    name = "inventory_form"
+    target = "main"

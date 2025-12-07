@@ -11,18 +11,18 @@ include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-01"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/scopes_update" ]
-  uri = "/webhooks/app/scopes_update"
+# Note: Webhook subscriptions removed for --use-localhost compatibility
+# Shopify cannot reach localhost URLs for webhook delivery
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products"
+scopes = "write_products,write_inventory,read_products,read_locations"
+
+# App proxy enabled for ngrok tunnel
+[app_proxy]
+url = "/api/proxy"
+prefix = "apps"
+subpath = "inventory-manager"
 
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]

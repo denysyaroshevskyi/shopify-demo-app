@@ -1,0 +1,317 @@
+{% comment %}
+  Inventory Manager - Storefront Widget
+  Displays two input fields and a button to update product inventory
+{% endcomment %}
+
+<div class="inventory-manager-widget" data-inventory-widget>
+  <div class="inventory-manager-container">
+    <h2 class="inventory-manager-title">{{ block.settings.heading }}</h2>
+    <p class="inventory-manager-description">{{ block.settings.description }}</p>
+
+    <form class="inventory-manager-form" data-inventory-form>
+      <div class="form-group">
+        <label for="inventory-product-id" class="form-label">
+          {{ block.settings.product_id_label }}
+        </label>
+        <input
+          type="text"
+          id="inventory-product-id"
+          name="productId"
+          class="form-input"
+          placeholder="{{ block.settings.product_id_placeholder }}"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="inventory-quantity-change" class="form-label">
+          {{ block.settings.quantity_label }}
+        </label>
+        <input
+          type="number"
+          id="inventory-quantity-change"
+          name="quantityChange"
+          class="form-input"
+          placeholder="{{ block.settings.quantity_placeholder }}"
+          required
+        />
+      </div>
+
+      <button
+        type="submit"
+        class="inventory-submit-btn"
+        data-submit-btn
+      >
+        {{ block.settings.button_text }}
+      </button>
+
+      <div class="inventory-message" data-message style="display: none;"></div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .inventory-manager-widget {
+    width: 100%;
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: {{ block.settings.background_color }};
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .inventory-manager-container {
+    width: 100%;
+  }
+
+  .inventory-manager-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: {{ block.settings.text_color }};
+  }
+
+  .inventory-manager-description {
+    margin: 0 0 1.5rem 0;
+    color: #666;
+    font-size: 0.95rem;
+  }
+
+  .inventory-manager-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: {{ block.settings.text_color }};
+  }
+
+  .form-input {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    transition: border-color 0.3s ease;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: {{ block.settings.button_color }};
+    box-shadow: 0 0 0 3px {{ block.settings.button_color }}33;
+  }
+
+  .inventory-submit-btn {
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    background-color: {{ block.settings.button_color }};
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .inventory-submit-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  .inventory-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .inventory-message {
+    padding: 1rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    margin-top: 1rem;
+  }
+
+  .inventory-message.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+
+  .inventory-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+
+  @media (max-width: 600px) {
+    .inventory-manager-widget {
+      padding: 1.5rem;
+      margin: 1rem;
+    }
+  }
+</style>
+
+<script>
+  (function() {
+    const form = document.querySelector('[data-inventory-form]');
+    const submitBtn = document.querySelector('[data-submit-btn]');
+    const messageDiv = document.querySelector('[data-message]');
+
+    if (!form) return;
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const productId = document.getElementById('inventory-product-id').value.trim();
+      const quantityChange = parseInt(document.getElementById('inventory-quantity-change').value);
+
+      // Validate inputs
+      if (!productId) {
+        showMessage('Please enter a Product ID', 'error');
+        return;
+      }
+
+      if (isNaN(quantityChange) || quantityChange === 0) {
+        showMessage('Please enter a valid quantity change (not zero)', 'error');
+        return;
+      }
+
+      // Disable button and show loading state
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Updating...';
+      hideMessage();
+
+      try {
+        // Call the app proxy endpoint
+        const response = await fetch('/apps/inventory-manager', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            productId: productId,
+            quantityChange: quantityChange
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showMessage(
+            `Success! Inventory updated from ${data.oldQuantity} to ${data.newQuantity} (${data.delta > 0 ? '+' : ''}${data.delta})`,
+            'success'
+          );
+
+          // Reset form
+          document.getElementById('inventory-quantity-change').value = '';
+        } else {
+          showMessage(`Error: ${data.error || 'Failed to update inventory'}`, 'error');
+        }
+      } catch (error) {
+        console.error('Inventory update error:', error);
+        showMessage('Network error. Please try again.', 'error');
+      } finally {
+        // Re-enable button
+        submitBtn.disabled = false;
+        submitBtn.textContent = '{{ block.settings.button_text }}';
+      }
+    });
+
+    function showMessage(text, type) {
+      messageDiv.textContent = text;
+      messageDiv.className = `inventory-message ${type}`;
+      messageDiv.style.display = 'block';
+
+      // Auto-hide success messages after 5 seconds
+      if (type === 'success') {
+        setTimeout(() => {
+          hideMessage();
+        }, 5000);
+      }
+    }
+
+    function hideMessage() {
+      messageDiv.style.display = 'none';
+    }
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Inventory Manager",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Update Product Inventory"
+    },
+    {
+      "type": "text",
+      "id": "description",
+      "label": "Description",
+      "default": "Enter product ID and quantity to change stock levels"
+    },
+    {
+      "type": "text",
+      "id": "product_id_label",
+      "label": "Product ID Label",
+      "default": "Product ID"
+    },
+    {
+      "type": "text",
+      "id": "product_id_placeholder",
+      "label": "Product ID Placeholder",
+      "default": "e.g., 1234567890"
+    },
+    {
+      "type": "text",
+      "id": "quantity_label",
+      "label": "Quantity Change Label",
+      "default": "Quantity to Change"
+    },
+    {
+      "type": "text",
+      "id": "quantity_placeholder",
+      "label": "Quantity Placeholder",
+      "default": "+10 or -5"
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button Text",
+      "default": "Update Stock"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button Color",
+      "default": "#008060"
+    }
+  ]
+}
+{% endschema %}
