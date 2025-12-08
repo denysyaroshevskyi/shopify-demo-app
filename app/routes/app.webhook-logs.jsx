@@ -14,12 +14,12 @@ export const loader = async ({ request }) => {
   await authenticate.admin(request);
 
   // Get recent webhook events
-  const recentEvents = getRecentWebhookEvents(50);
+  const recentEvents = await getRecentWebhookEvents(50);
 
   // Get summary for last 24 hours
   const endDate = new Date();
   const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
-  const summary = createWebhookSummary(startDate, endDate);
+  const summary = await createWebhookSummary(startDate, endDate);
 
   return {
     events: recentEvents,
@@ -153,7 +153,7 @@ export default function WebhookLogs() {
         <s-heading level="2">About This Page</s-heading>
         <s-unordered-list>
           <s-list-item>
-            Webhook events are logged to <code>logs/webhooks/inventory-events-YYYY-MM-DD.log</code>
+            Webhook events are stored in PostgreSQL database
           </s-list-item>
           <s-list-item>
             Each event includes a simulated PIM/ERP notification
