@@ -151,23 +151,20 @@ export function createWebhookSummary(startDate, endDate) {
 
 /**
  * Emulate sending webhook data to external PIM/ERP system
- * In production, this would make actual HTTP requests
  *
  * @param {Object} inventoryData - Inventory change data
  * @returns {Promise<Object>} Mock response from PIM/ERP
  */
 export async function notifyExternalPIM(inventoryData) {
-  // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 100));
 
   // Log the notification
-  console.log('📤 Sending to PIM/ERP:', {
+  console.log('Sending to PIM/ERP:', {
     endpoint: 'https://pim.example.com/api/inventory/sync',
     method: 'POST',
     data: inventoryData,
   });
 
-  // Simulate successful response
   return {
     success: true,
     pimResponse: {
