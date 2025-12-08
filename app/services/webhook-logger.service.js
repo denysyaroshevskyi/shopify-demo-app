@@ -1,25 +1,16 @@
 /**
  * Webhook Logger Service
  *
- * Logs webhook events to files to emulate PIM/ERP system notifications.
+ * Logs webhook events to PostgreSQL database to emulate PIM/ERP system notifications.
  * In production, this would be replaced with actual API calls to external systems.
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { PrismaClient } from '@prisma/client';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Create logs directory if it doesn't exist
-const LOGS_DIR = path.join(__dirname, '../../logs/webhooks');
-if (!fs.existsSync(LOGS_DIR)) {
-  fs.mkdirSync(LOGS_DIR, { recursive: true });
-}
+const prisma = new PrismaClient();
 
 /**
- * Log inventory webhook event to file
+ * Log inventory webhook event to database
  * Emulates sending notification to PIM/ERP system
  *
  * @param {Object} event - Webhook event data
@@ -29,40 +20,24 @@ if (!fs.existsSync(LOGS_DIR)) {
  * @param {string} event.receivedAt - ISO timestamp
  */
 export async function logInventoryWebhook(event) {
-  const timestamp = new Date().toISOString();
-  const dateStr = timestamp.split('T')[0]; // YYYY-MM-DD
-
-  // Create daily log file
-  const logFile = path.join(LOGS_DIR, `inventory-events-${dateStr}.log`);
-
-  // Format log entry
-  const logEntry = {
-    timestamp,
-    shop: event.shop,
-    topic: event.topic,
-    receivedAt: event.receivedAt,
-    inventoryChange: {
-      inventoryItemId: event.payload.inventory_item_id,
-      locationId: event.payload.location_id,
-      available: event.payload.available,
-      updatedAt: event.payload.updated_at,
-    },
-    // Emulate PIM/ERP notification
-    pimNotification: {
-      status: 'sent',
-      endpoint: 'https://pim.example.com/api/inventory/sync',
-      method: 'POST',
-      sentAt: timestamp,
-    },
-  };
-
-  // Append to log file
-  const logLine = JSON.stringify(logEntry) + '\n';
+  const timestamp = new Date();
 
   try {
-    fs.appendFileSync(logFile, logLine, 'utf8');
-    console.log(`✅ Logged inventory webhook to ${logFile}`);
-    return { success: true, logFile };
+    const webhookEvent = await prisma.webhookEvent.create({
+      data: {
+        timestamp,
+        topic: event.topic,
+        shop: event.shop,
+        inventoryItemId: String(event.payload.inventory_item_id || ''),
+        locationId: String(event.payload.location_id || ''),
+        available: event.payload.available || 0,
+        pimStatus: 'sent',
+        payload: event.payload,
+      },
+    });
+
+    console.log(`✅ Logged inventory webhook to database: ${webhookEvent.id}`);
+    return { success: true, eventId: webhookEvent.id };
   } catch (error) {
     console.error('❌ Failed to write webhook log:', error);
     throw error;
@@ -70,38 +45,39 @@ export async function logInventoryWebhook(event) {
 }
 
 /**
- * Get recent webhook events from logs
+ * Get recent webhook events from database
  *
  * @param {number} limit - Number of recent events to retrieve
- * @returns {Array} Recent webhook events
+ * @returns {Promise<Array>} Recent webhook events
  */
-export function getRecentWebhookEvents(limit = 50) {
+export async function getRecentWebhookEvents(limit = 50) {
   try {
-    const files = fs.readdirSync(LOGS_DIR)
-      .filter(f => f.startsWith('inventory-events-'))
-      .sort()
-      .reverse();
+    const events = await prisma.webhookEvent.findMany({
+      take: limit,
+      orderBy: {
+        timestamp: 'desc',
+      },
+    });
 
-    const events = [];
-
-    for (const file of files) {
-      if (events.length >= limit) break;
-
-      const filePath = path.join(LOGS_DIR, file);
-      const content = fs.readFileSync(filePath, 'utf8');
-      const lines = content.trim().split('\n');
-
-      for (const line of lines.reverse()) {
-        if (events.length >= limit) break;
-        try {
-          events.push(JSON.parse(line));
-        } catch (e) {
-          // Skip malformed lines
-        }
-      }
-    }
-
-    return events;
+    // Transform to match the old format for backward compatibility
+    return events.map(event => ({
+      timestamp: event.timestamp.toISOString(),
+      shop: event.shop,
+      topic: event.topic,
+      receivedAt: event.timestamp.toISOString(),
+      inventoryChange: {
+        inventoryItemId: event.inventoryItemId,
+        locationId: event.locationId,
+        available: event.available,
+        updatedAt: event.createdAt.toISOString(),
+      },
+      pimNotification: {
+        status: event.pimStatus,
+        endpoint: 'https://pim.example.com/api/inventory/sync',
+        method: 'POST',
+        sentAt: event.timestamp.toISOString(),
+      },
+    }));
   } catch (error) {
     console.error('Error reading webhook logs:', error);
     return [];
@@ -113,40 +89,62 @@ export function getRecentWebhookEvents(limit = 50) {
  *
  * @param {Date} startDate - Start date for report
  * @param {Date} endDate - End date for report
- * @returns {Object} Summary statistics
+ * @returns {Promise<Object>} Summary statistics
  */
-export function createWebhookSummary(startDate, endDate) {
-  const events = getRecentWebhookEvents(1000);
+export async function createWebhookSummary(startDate, endDate) {
+  try {
+    const events = await prisma.webhookEvent.findMany({
+      where: {
+        timestamp: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        shop: true,
+        inventoryItemId: true,
+        locationId: true,
+      },
+    });
 
-  const filtered = events.filter(e => {
-    const eventDate = new Date(e.timestamp);
-    return eventDate >= startDate && eventDate <= endDate;
-  });
+    const summary = {
+      totalEvents: events.length,
+      uniqueShops: new Set(events.map(e => e.shop)).size,
+      uniqueItems: new Set(events.map(e => e.inventoryItemId)).size,
+      byShop: {},
+      byLocation: {},
+      dateRange: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+      },
+    };
 
-  const summary = {
-    totalEvents: filtered.length,
-    uniqueShops: new Set(filtered.map(e => e.shop)).size,
-    uniqueItems: new Set(filtered.map(e => e.inventoryChange.inventoryItemId)).size,
-    byShop: {},
-    byLocation: {},
-    dateRange: {
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-    },
-  };
+    // Count by shop
+    events.forEach(e => {
+      summary.byShop[e.shop] = (summary.byShop[e.shop] || 0) + 1;
+    });
 
-  // Count by shop
-  filtered.forEach(e => {
-    summary.byShop[e.shop] = (summary.byShop[e.shop] || 0) + 1;
-  });
+    // Count by location
+    events.forEach(e => {
+      const locId = e.locationId;
+      summary.byLocation[locId] = (summary.byLocation[locId] || 0) + 1;
+    });
 
-  // Count by location
-  filtered.forEach(e => {
-    const locId = e.inventoryChange.locationId;
-    summary.byLocation[locId] = (summary.byLocation[locId] || 0) + 1;
-  });
-
-  return summary;
+    return summary;
+  } catch (error) {
+    console.error('Error creating webhook summary:', error);
+    return {
+      totalEvents: 0,
+      uniqueShops: 0,
+      uniqueItems: 0,
+      byShop: {},
+      byLocation: {},
+      dateRange: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+      },
+    };
+  }
 }
 
 /**
