@@ -1,0 +1,36 @@
+query CartPaymentMethodsTransformRunInput {
+  cart {
+    lines {
+      id
+      quantity
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          weight
+          product {
+            id
+            isParcelEligible: metafield(namespace: "custom", key: "is_parcel_eligible") {
+              value
+            }
+            requiresLtl: metafield(namespace: "custom", key: "requires_ltl") {
+              value
+            }
+          }
+        }
+      }
+    }
+    buyerIdentity {
+      customer {
+        id
+        ccPilotEligible: metafield(namespace: "custom", key: "cc_pilot_eligible") {
+          value
+        }
+      }
+    }
+  }
+  paymentMethods {
+    id
+    name
+  }
+}
