@@ -20,11 +20,32 @@ query CartPaymentMethodsTransformRunInput {
         }
       }
     }
+    deliveryGroups {
+      selectedDeliveryOption {
+        handle
+        title
+        deliveryMethodType
+      }
+    }
     buyerIdentity {
       customer {
         id
         ccPilotEligible: metafield(namespace: "custom", key: "cc_pilot_eligible") {
           value
+        }
+      }
+      purchasingCompany {
+        company {
+          id
+          name
+        }
+        location {
+          id
+          name
+          externalId
+          ccLocationEligible: metafield(namespace: "custom", key: "cc_location_eligible") {
+            value
+          }
         }
       }
     }
